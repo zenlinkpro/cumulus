@@ -273,7 +273,16 @@ pub async fn start_node(
 		polkadot_config,
 		id,
 		validator,
-		|_| Default::default(),
+		|client| {
+			let mut io = jsonrpc_core::IoHandler::default();
+
+			use pallet_contracts_rpc::{Contracts, ContractsApi};
+
+			io.extend_with(
+				ContractsApi::to_delegate(Contracts::new(client.clone()))
+			);
+			io
+		},
 	)
 	.await
 }
