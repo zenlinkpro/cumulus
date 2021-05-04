@@ -39,6 +39,8 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+mod chain_extension;
+
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
@@ -67,6 +69,7 @@ use xcm_builder::{
 	AllowUnpaidExecutionFrom, ParentAsSuperuser,
 };
 use xcm_executor::{Config, XcmExecutor};
+use crate::chain_extension::XcmSenderExtension;
 
 pub type SessionHandlers = ();
 
@@ -424,7 +427,7 @@ impl pallet_contracts::Config for Runtime {
 	type MaxValueSize = MaxValueSize;
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
 	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
-	type ChainExtension = ();
+	type ChainExtension = XcmSenderExtension;
 	type DeletionQueueDepth = DeletionQueueDepth;
 	type DeletionWeightLimit = DeletionWeightLimit;
 	type MaxCodeSize = MaxCodeSize;
