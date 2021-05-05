@@ -208,6 +208,7 @@ impl<T: Config> Module<T> {
 		format: XcmpMessageFormat,
 		fragment: Fragment,
 	) -> Result<u32, MessageSendError> {
+		log::info!("send_fragment ---------step 1");
 		let data = fragment.encode();
 
 		// Optimization note: `max_message_size` could potentially be stored in
@@ -232,6 +233,7 @@ impl<T: Config> Module<T> {
 			s.extend_from_slice(&data[..]);
 			return true
 		});
+		log::info!("send_fragment ---------step 2");
 		if appended {
 			Ok((s[index].4 - s[index].3 - 1) as u32)
 		} else {
@@ -309,7 +311,7 @@ impl<T: Config> Module<T> {
 		max_weight: Weight,
 	) -> Result<Weight, XcmError> {
 		let hash = Encode::using_encoded(&xcm, T::Hashing::hash);
-		log::debug!("Processing XCMP-XCM: {:?}", &hash);
+		log::info!("Processing XCMP-XCM: {:?}", &hash);
 		let (result, event) = match Xcm::<T::Call>::try_from(xcm) {
 			Ok(xcm) => {
 				let location = (
@@ -340,6 +342,7 @@ impl<T: Config> Module<T> {
 		max_weight: Weight,
 	) -> (Weight, bool) {
 		let data = InboundXcmpMessages::get(sender, sent_at);
+		log::info!("-----------xcmp-queue::process_xcmp_message step_0-----------------");
 		let mut last_remaining_fragments;
 		let mut remaining_fragments = &data[..];
 		let mut weight_used = 0;
@@ -554,22 +557,27 @@ impl<T: Config> XcmpMessageHandler for Module<T> {
 		iter: I,
 		max_weight: Weight,
 	) -> Weight {
+		log::info!("-----------xcmp-queue::handle_xcmp_message step_0-----------------");
+
 		let mut status = InboundXcmpStatus::get();
 
 		let QueueConfigData { suspend_threshold, drop_threshold, .. } = QueueConfig::get();
-
 		for (sender, sent_at, data) in iter {
-
+			log::info!("-----------xcmp-queue::handle_xcmp_message step_1----------------- sender:{:#?}, send_at{:#?}", sender, sent_at);
 			// Figure out the message format.
 			let mut data_ref = data;
 			let format = match XcmpMessageFormat::decode(&mut data_ref) {
 				Ok(f) => f,
 				Err(_) => {
-					debug_assert!(false, "Unknown XCMP message format. Silently dropping message");
+					log::info!("Unknown XCMP message format. Silently dropping message");
 					continue
 				},
 			};
+
+			log::info!("-----------xcmp-queue::handle_xcmp_message step_2----------------- data {:#?}", data);
+
 			if format == XcmpMessageFormat::Signals {
+				log::info!("-----------xcmp-queue::handle_xcmp_message step_3");
 				while !data_ref.is_empty() {
 					use ChannelSignal::*;
 					match ChannelSignal::decode(&mut data_ref) {
@@ -719,6 +727,7 @@ impl<T: Config> SendXcm for Module<T> {
 			MultiLocation::X2(Junction::Parent, Junction::Parachain { id }) => {
 				let msg = VersionedXcm::<()>::from(msg);
 				let hash = T::Hashing::hash_of(&msg);
+				log::info!("xcmp-queue send msg:{:#?}, hash {:#?}", msg, hash);
 				Self::send_fragment((*id).into(), XcmpMessageFormat::ConcatenatedVersionedXcm, msg)
 					.map_err(|e| XcmError::SendFailed(<&'static str>::from(e)))?;
 				Self::deposit_event(RawEvent::XcmpMessageSent(Some(hash)));

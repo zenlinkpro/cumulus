@@ -9,14 +9,15 @@ use xcm_executor::XcmExecutor;
 use crate::XcmConfig;
 use xcm::v0::{MultiLocation, Junction, NetworkId, MultiAsset, Xcm, Order, ExecuteXcm};
 use sp_std::vec;
+use frame_support::traits::All;
 
 pub struct XcmSenderExtension;
 
 #[derive(Debug, Encode, Decode)]
 struct XcmParameter {
-    pub from:   AccountId32,
+    pub from: AccountId32,
     pub target_chain_id: u32,
-    pub amount :u128,
+    pub amount: u128,
 }
 
 impl ChainExtension<Runtime> for XcmSenderExtension {
@@ -33,7 +34,7 @@ impl ChainExtension<Runtime> for XcmSenderExtension {
                 let params = XcmParameter::decode(&mut &data[..]).unwrap();
                 log::info!("chain extension step 1 {:#?}", params);
 
-                let origin = MultiLocation::from(Junction::AccountId32{ network: NetworkId::Any, id: <[u8; 32]>::from(params.from.clone()) });
+                let origin = MultiLocation::from(Junction::AccountId32 { network: NetworkId::Any, id: <[u8; 32]>::from(params.from.clone()) });
                 let xcm_msg = make_xcm_lateral_transfer_native(origin.clone(), params.target_chain_id, params.from, params.amount);
 
                 let xcm_msg_v2 = Xcm::<>::from(xcm_msg);
@@ -61,19 +62,21 @@ pub fn make_xcm_lateral_transfer_native(
     amount: u128,
 ) -> Xcm<()> {
     Xcm::WithdrawAsset {
-        assets: vec![MultiAsset::ConcreteFungible { id: location, amount }],
-        effects: vec![Order::DepositReserveAsset {
-            assets: vec![MultiAsset::All],
-            dest: MultiLocation::X2(
-                Junction::Parent,
-                Junction::Parachain { id: para_id.into() },
-            ),
-            effects: vec![make_deposit_asset_order(account)],
-        }],
+        assets: vec![MultiAsset::ConcreteFungible { id: MultiLocation::X1(Junction::Parent), amount }],
+        effects: vec![
+            Order::BuyExecution { fees: MultiAsset::All, weight: 0, debt: 5000, halt_on_error: true, xcm: vec![] },
+            Order::DepositReserveAsset {
+                assets: vec![MultiAsset::All],
+                dest: MultiLocation::X2(
+                    Junction::Parent,
+                    Junction::Parachain { id: para_id.into() },
+                ),
+                effects: vec![make_deposit_asset_order(account)],
+            }],
     }
 }
 
-fn make_deposit_asset_order(account: AccountId32) ->Order<()> {
+fn make_deposit_asset_order(account: AccountId32) -> Order<()> {
     Order::DepositAsset {
         assets: vec![MultiAsset::All],
         dest: MultiLocation::X1(Junction::AccountId32 {

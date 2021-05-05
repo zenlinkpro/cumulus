@@ -5453,6 +5453,7 @@ source = "git+https://github.com/paritytech/polkadot?branch=rococo-v1#127eb17a25
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "serde",
  "sp-runtime",
@@ -11900,6 +11901,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
+ "log",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",
