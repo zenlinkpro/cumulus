@@ -73,9 +73,7 @@ use xcm_builder::{
 use xcm_executor::{Config, XcmExecutor};
 use crate::chain_extension::XcmSenderExtension;
 use xcm_executor::traits::FilterAssetLocation;
-use orml_traits::{
-	create_median_value_data_provider, parameter_type_with_key, DataFeeder, DataProviderExtended, Handler,
-};
+use orml_traits::parameter_type_with_key;
 
 pub type SessionHandlers = ();
 

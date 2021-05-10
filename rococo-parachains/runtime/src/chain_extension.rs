@@ -6,12 +6,9 @@ use super::Runtime;
 use sp_std::mem;
 use codec::{Encode, Decode};
 use xcm_executor::XcmExecutor;
-use crate::{XcmConfig, ParachainInfo};
+use crate::{XcmConfig};
 use xcm::v0::{MultiLocation, Junction, NetworkId, MultiAsset, Xcm, Order, ExecuteXcm};
 use sp_std::vec;
-use frame_support::traits::{All, Currency};
-use crate::sp_api_hidden_includes_construct_runtime::hidden_include::traits::Get;
-use frame_support::sp_runtime::sp_std::default::default;
 
 pub struct XcmSenderExtension;
 
@@ -32,15 +29,15 @@ struct TransferParameter {
 }
 
 impl ChainExtension<Runtime> for XcmSenderExtension {
-    fn call<E: Ext>(func_id: u32, mut env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+    fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
         where
             <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
     {
         match func_id {
             1101 => {
                 log::info!("chain extension step 0");
-                let mut env = env.buf_in_buf_out();
-                let mut data = env.read(mem::size_of::<XcmParameter>() as u32).unwrap();
+                let env = env.buf_in_buf_out();
+                let data = env.read(mem::size_of::<XcmParameter>() as u32).unwrap();
                 let params = XcmParameter::decode(&mut &data[..]).unwrap();
                 log::info!("chain extension step 1 {:#?}", params);
 
@@ -68,9 +65,7 @@ impl ChainExtension<Runtime> for XcmSenderExtension {
                 //step4  contract::deposit(to_account, amount)
                 let env = env.buf_in_buf_out();
                 let data = env.read(mem::size_of::<TransferParameter>() as u32).unwrap_or_default();
-                let res = TransferParameter::decode(&mut &data[..]);
-
-
+                let _res = TransferParameter::decode(&mut &data[..]);
             }
             1103 =>{
                 log::info!("chain extension call 1103 transfer_from_contract_to_module");
@@ -97,7 +92,7 @@ impl ChainExtension<Runtime> for XcmSenderExtension {
 }
 
 pub fn make_xcm_lateral_transfer_native(
-    location: MultiLocation,
+    _location: MultiLocation,
     para_id: u32,
     account: AccountId32,
     amount: u128,

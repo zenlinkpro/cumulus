@@ -72,25 +72,21 @@ macro_rules! create_currency_id {
 			fn currency_id(&self) -> Option<u8> {
 				match self {
 					$(CurrencyId::Token(TokenSymbol::$symbol) => Some($val),)*
-					_ => None,
 				}
 			}
 			fn name(&self) -> Option<&str> {
 				match self {
 					$(CurrencyId::Token(TokenSymbol::$symbol) => Some($name),)*
-					_ => None,
 				}
 			}
 			fn symbol(&self) -> Option<&str> {
 				match self {
 					$(CurrencyId::Token(TokenSymbol::$symbol) => Some(stringify!($symbol)),)*
-					_ => None,
 				}
 			}
 			fn decimals(&self) -> Option<u8> {
 				match self {
 					$(CurrencyId::Token(TokenSymbol::$symbol) => Some($deci),)*
-					_ => None,
 				}
 			}
 		}
@@ -117,17 +113,17 @@ create_currency_id! {
 	#[repr(u8)]
 	pub enum TokenSymbol {
 		// Polkadot Ecosystem
-		ACA("Acala", 12) = 0,
-		AUSD("Acala Dollar", 12) = 1,
+		// ACA("Acala", 12) = 0,
+		// AUSD("Acala Dollar", 12) = 1,
 		DOT("Polkadot", 10) = 2,
-		LDOT("Liquid DOT", 10) = 3,
-		RENBTC("Ren Protocol BTC", 8) = 4,
-
-		// Kusama Ecosystem
-		KAR("Karura", 12) = 128,
-		KUSD("Karura Dollar", 12) = 129,
-		KSM("Kusama", 12) = 130,
-		LKSM("Liquid KSM", 12) = 131,
+		// LDOT("Liquid DOT", 10) = 3,
+		// RENBTC("Ren Protocol BTC", 8) = 4,
+		//
+		// // Kusama Ecosystem
+		// KAR("Karura", 12) = 128,
+		// KUSD("Karura Dollar", 12) = 129,
+		// KSM("Kusama", 12) = 130,
+		// LKSM("Liquid KSM", 12) = 131,
 		// Reserve for RENBTC = 132
 	}
 }
