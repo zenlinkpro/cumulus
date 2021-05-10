@@ -121,3 +121,33 @@ cargo build --release
 ```
 ### Register the parachain
 ![image](https://user-images.githubusercontent.com/2915325/99548884-1be13580-2987-11eb-9a8b-20be658d34f9.png)
+
+
+### Types
+    The AccountData of orml-tokens conflict with system AccountData. The type just used in chain state.
+
+    {
+        "TokenSymbol": {
+            "_enum": {
+                "ACA": 0,
+                "AUSD": 1,
+                "DOT": 2,
+                "LDOT": 3,
+                "RENBTC": 4,
+                "KAR": 128,
+                "KUSD": 129,
+                "KSM": 130,
+                "LKSM": 131
+            }
+        },
+        "CurrencyId": {
+            "_enum": {
+                "Token": "TokenSymbol"
+            }
+        },
+        "AccountData": {
+            "free": "u128",
+            "frozen": "u128",
+            "reserved": "u128"
+        }
+    }

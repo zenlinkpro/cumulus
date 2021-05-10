@@ -16,13 +16,14 @@
 
 use cumulus_primitives_core::ParaId;
 use hex_literal::hex;
-use rococo_parachain_primitives::{AccountId, Signature};
+use rococo_parachain_primitives::{AccountId, Signature, DOT};
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 use pallet_contracts::GenesisConfig;
+use parachain_runtime::{TokensConfig};
 
 /// Specialized `ChainSpec` for the normal parachain runtime.
 pub type ChainSpec = sc_service::GenericChainSpec<parachain_runtime::GenesisConfig, Extensions>;
@@ -141,10 +142,13 @@ fn testnet_genesis(
 				.map(|k| (k, 1 << 60))
 				.collect(),
 		},
-		pallet_sudo: parachain_runtime::SudoConfig { key: root_key },
+		pallet_sudo: parachain_runtime::SudoConfig { key: root_key.clone() },
 		parachain_info: parachain_runtime::ParachainInfoConfig { parachain_id: id },
 		pallet_contracts: GenesisConfig {
 			current_schedule: pallet_contracts::Schedule::default()
+		},
+		orml_tokens: TokensConfig{
+			endowed_accounts: vec![(root_key, DOT, 1_000_000_000_000)],
 		},
 	}
 }

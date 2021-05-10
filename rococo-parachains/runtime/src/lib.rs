@@ -1,3 +1,4 @@
+#![feature(default_free_fn)]
 // Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Cumulus.
 
@@ -30,7 +31,7 @@ use sp_api::impl_runtime_apis;
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{BlakeTwo256, Block as BlockT, IdentityLookup},
+	traits::{BlakeTwo256, Block as BlockT, IdentityLookup,Zero},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult,
 };
@@ -40,6 +41,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 mod chain_extension;
+mod contract_assets_adapter;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
@@ -60,7 +62,7 @@ pub use sp_runtime::{Perbill, Permill};
 
 // XCM imports
 use polkadot_parachain::primitives::Sibling;
-use xcm::v0::{Junction, MultiLocation, NetworkId};
+use xcm::v0::{Junction, MultiLocation, NetworkId, MultiAsset};
 use xcm_builder::{
 	AccountId32Aliases, CurrencyAdapter, LocationInverter, ParentIsDefault, RelayChainAsNative,
 	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
@@ -70,6 +72,10 @@ use xcm_builder::{
 };
 use xcm_executor::{Config, XcmExecutor};
 use crate::chain_extension::XcmSenderExtension;
+use xcm_executor::traits::FilterAssetLocation;
+use orml_traits::{
+	create_median_value_data_provider, parameter_type_with_key, DataFeeder, DataProviderExtended, Handler,
+};
 
 pub type SessionHandlers = ();
 
@@ -262,6 +268,10 @@ parameter_types! {
 	pub Ancestry: MultiLocation = Junction::Parachain {
 		id: ParachainInfo::parachain_id().into()
 	}.into();
+
+	pub TestLocation: MultiLocation = MultiLocation::X2(Junction::Parent, Junction::Parachain {
+		id: ParachainInfo::parachain_id().into()
+	});
 }
 
 /// Type for specifying how a `MultiLocation` can be converted into an `AccountId`. This is used
@@ -327,6 +337,20 @@ pub type Barrier = (
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,	// <- Parent gets free execution
 );
 
+
+pub type TransferableAssets = (
+	NativeAsset,
+	TestAssets,
+);
+
+pub struct TestAssets;
+
+impl FilterAssetLocation for TestAssets{
+	fn filter_asset_location(_asset: &MultiAsset, _origin: &MultiLocation) -> bool {
+		true
+	}
+}
+
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
@@ -334,13 +358,29 @@ impl Config for XcmConfig {
 	// How to withdraw and deposit an asset.
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
-	type IsReserve = NativeAsset;
-	type IsTeleporter = NativeAsset;	// <- should be enough to allow teleportation of ROC
+	type IsReserve = TransferableAssets;
+	type IsTeleporter = TransferableAssets;	// <- should be enough to allow teleportation of ROC
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = FixedRateOfConcreteFungible<WeightPrice>;
 	type ResponseHandler = ();	// Don't handle responses for now.
+}
+
+parameter_type_with_key! {
+	pub ExistentialDeposits: |_currency_id: CurrencyId| -> Balance {
+		Zero::zero()
+	};
+}
+
+impl orml_tokens::Config for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type Amount = i128;
+	type CurrencyId = CurrencyId;
+	type WeightInfo = ();
+	type ExistentialDeposits = ExistentialDeposits;
+	type OnDust = ();
 }
 
 parameter_types! {
@@ -443,6 +483,8 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Contracts: pallet_contracts::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Tokens: orml_tokens::{Pallet, Call, Config<T>, Storage, Event<T>},
+
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
 		ParachainSystem: cumulus_pallet_parachain_system::{Pallet, Call, Storage, Inherent, Event<T>},

@@ -23,6 +23,8 @@ members = [
 	"test/service",
 	"test/relay-sproof-builder",
 	"test/relay-validation-worker-provider",
+
+	"orml/currencies",
 ]
 
 [profile.release]

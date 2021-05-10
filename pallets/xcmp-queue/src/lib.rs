@@ -86,7 +86,7 @@ impl Default for QueueConfigData {
 			suspend_threshold: 2,
 			drop_threshold: 5,
 			resume_threshold: 1,
-			threshold_weight: 100_000,
+			threshold_weight: 500_100_000_000,
 			weight_restrict_decay: 2,
 		}
 	}
@@ -171,7 +171,7 @@ pub enum ChannelSignal {
 }
 
 /// The aggregate XCMP message format.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
 pub enum XcmpMessageFormat {
 	/// Encoded `VersionedXcm` messages, all concatenated.
 	ConcatenatedVersionedXcm,
@@ -342,7 +342,7 @@ impl<T: Config> Module<T> {
 		max_weight: Weight,
 	) -> (Weight, bool) {
 		let data = InboundXcmpMessages::get(sender, sent_at);
-		log::info!("-----------xcmp-queue::process_xcmp_message step_0-----------------");
+		log::info!("-----------xcmp-queue::process_xcmp_message step_0----------------- sender {:?}, sent_at:{:#?}, format{:#?} data: {:#?}", u32::from(sender), sent_at,format, data);
 		let mut last_remaining_fragments;
 		let mut remaining_fragments = &data[..];
 		let mut weight_used = 0;
@@ -435,11 +435,12 @@ impl<T: Config> Module<T> {
 	/// for the second &c. though empirical and or practical factors may give rise to adjusting it
 	/// further.
 	fn service_xcmp_queue(max_weight: Weight) -> Weight {
+		log::info!("!!!!!!!! service_xcmp_queue step_0");
 		let mut status = InboundXcmpStatus::get(); // <- sorted.
 		if status.len() == 0 {
 			return 0
 		}
-
+		log::info!("!!!!!!!! service_xcmp_queue step_1");
 		let QueueConfigData {
 			resume_threshold,
 			threshold_weight,
@@ -460,7 +461,9 @@ impl<T: Config> Module<T> {
 		// send more, heavier messages.
 
 		let mut shuffle_index = 0;
+		log::info!("!!!!!!!! service_xcmp_queue step_1, max_weight {}, threshold_weight {}", max_weight, threshold_weight);
 		while shuffle_index < shuffled.len() && max_weight.saturating_sub(weight_used) < threshold_weight {
+			log::info!("!!!!!!!! service_xcmp_queue step_2");
 			let index = shuffled[shuffle_index];
 			let sender = status[index].0;
 
@@ -557,7 +560,7 @@ impl<T: Config> XcmpMessageHandler for Module<T> {
 		iter: I,
 		max_weight: Weight,
 	) -> Weight {
-		log::info!("-----------xcmp-queue::handle_xcmp_message step_0-----------------");
+		log::info!("-----------xcmp-queue::handle_xcmp_message step_0-----------------, max_weight: {}", max_weight);
 
 		let mut status = InboundXcmpStatus::get();
 
@@ -574,7 +577,7 @@ impl<T: Config> XcmpMessageHandler for Module<T> {
 				},
 			};
 
-			log::info!("-----------xcmp-queue::handle_xcmp_message step_2----------------- data {:#?}", data);
+			log::info!("-----------xcmp-queue::handle_xcmp_message step_2----------------- data {:#?}, format {:#?}", data, format);
 
 			if format == XcmpMessageFormat::Signals {
 				log::info!("-----------xcmp-queue::handle_xcmp_message step_3");
@@ -590,6 +593,7 @@ impl<T: Config> XcmpMessageHandler for Module<T> {
 				// Record the fact we received it.
 				match status.binary_search_by_key(&sender, |item| item.0) {
 					Ok(i) => {
+						log::info!("-----------xcmp-queue::handle_xcmp_message step_4 status {:#?} index: {}", status, i);
 						let count = status[i].2.len();
 						if count as u32 >= suspend_threshold && status[i].1 == InboundStatus::Ok {
 							status[i].1 = InboundStatus::Suspended;

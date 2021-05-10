@@ -18,11 +18,16 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+mod currency;
+
 use sp_runtime::{
 	generic,
 	traits::{BlakeTwo256, IdentifyAccount, Verify},
 	MultiSignature,
 };
+
+pub use currency::{CurrencyId, DexShare, TokenSymbol,DOT};
+
 
 pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
