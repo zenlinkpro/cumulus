@@ -1,7 +1,7 @@
 use codec::{Encode, Decode};
 
 use sp_std::{mem, vec, prelude::*, marker::PhantomData};
-use sp_runtime::{DispatchError, AccountId32};
+use sp_runtime::{DispatchError, AccountId32, traits::Zero};
 use xcm_executor::XcmExecutor;
 use xcm::v0::{MultiLocation, Junction, NetworkId, MultiAsset, Xcm, Order, ExecuteXcm};
 use pallet_contracts::chain_extension::{
@@ -10,8 +10,9 @@ use pallet_contracts::chain_extension::{
 
 use rococo_parachain_primitives::AccountId;
 use crate::{XcmConfig, Runtime, Balances, Tokens, contract_assets_adapter::{
-    CustomMultiAsset, AssetId, CustomMultiAssetAdapter, AssetProducer::PALLET},
+    CustomMultiAsset, AssetId, CustomMultiAssetAdapter},
 };
+use sp_std::borrow::Borrow;
 
 
 pub struct CustomExtension<CustomMultiAssetAdapter>(
@@ -30,8 +31,13 @@ struct XcmParameter {
 struct TransferParameter {
     pub from: AccountId32,
     pub to: AccountId32,
-    //pub AssetId: asset_id,
+    pub asset_id: AssetId,
     pub amount: u128,
+}
+#[derive(Debug, Encode, Decode)]
+struct BalancesOfParameter{
+    pub owner: AccountId32,
+    pub asset_id: AssetId,
 }
 
 impl ChainExtension<Runtime> for CustomExtension<CustomMultiAsset<AccountId, AssetId, Balances, Tokens>> {
@@ -60,48 +66,47 @@ impl ChainExtension<Runtime> for CustomExtension<CustomMultiAsset<AccountId, Ass
 
                 let xcm_msg_v2 = Xcm::<>::from(xcm_msg);
 
-                let res = XcmExecutor::<XcmConfig>::execute_xcm(origin, xcm_msg_v2, 1_000_000_000);
-                log::info!("chain extension step 2 {:#?}", res);
-                Ok(())
+                XcmExecutor::<XcmConfig>::execute_xcm(origin, xcm_msg_v2, 1_000_000_000)
+                    .ensure_complete()
+                    .map_err(|_| DispatchError::Other("ChainExtension failed to call total_supply"))?
             }
             1102 => {
-                // transfer from module to contract
-                log::info!("chain extension call 1102 transfer_from_module_to_contract");
-                //step1: get from_account, amount, contract_address, asset_id , to_address from env
-                //step2: check balance. asset_module::balance_of(from_address)
-                //step3: asset_module::transfer(from_account, contract_address, amount);
-                //step4  contract::deposit(to_account, amount)
+                log::info!("chain extension call 1102 transfer");
                 let env = env.buf_in_buf_out();
                 let data = env.read(mem::size_of::<TransferParameter>() as u32).unwrap_or_default();
-                TransferParameter::decode(&mut &data[..])
-                    .map_or_else(
-                        |e| Err(DispatchError::Other("decode failed")),
-                        |params| {
-                            CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_total_supply(&AssetId {
-                                chain_id: 200,
-                                producer: PALLET(1),
-                                asset_index: 0,
-                            });
-                            Ok(())
-                        },
-                    )
+                let params = TransferParameter::decode(&mut &data[..])
+                    .map_err(|_| DispatchError::Other("ChainExtension failed to call balance of"))?;
+                CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_transfer(&params.asset_id, &params.from, &params.to, params.amount)?;
             }
-            1103 => {
-                log::info!("chain extension call 1103 transfer_from_contract_to_module");
-                //step -2: check from_account balance, use call contract::balances_of. //do in contract.
-                //step -1: contract::withdraw(from_account)                            //do in contract.
-
-                // The steps above should been done in contract.
-                // if contract do something bad, the impact is limited to the contract.
-
-                //step1: get from_account, amount, contract_address, asset_id , to_address from env
-                //step2: asset_module::transfer(contract_address, to_account)
-                Ok(())
+            1104 =>{
+                log::info!("chain extension call 1104 balance_of");
+                let mut env = env.buf_in_buf_out();
+                let data = env.read(mem::size_of::<BalancesOfParameter>() as u32).unwrap_or_default();
+                let balance = BalancesOfParameter::decode(&mut &data[..]).map_or(
+                    Zero::zero(),
+                    |params|{
+                        CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_balance_of(&params.asset_id, params.owner.borrow())
+                    });
+                let balance = balance.encode();
+                env.write(&balance, false, None)
+                    .map_err(|_| DispatchError::Other("ChainExtension failed to call balance of"))?;
             }
-
+            1105 =>{
+                log::info!("chain extension call 1105 total_supply");
+                let mut env = env.buf_in_buf_out();
+                let data = env.read(mem::size_of::<TransferParameter>() as u32).unwrap_or_default();
+                let total_supply = AssetId::decode(&mut &data[..]).map_or(
+                    Zero::zero(),
+                    |asset_id|{
+                        CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_total_supply(&asset_id)
+                    });
+                let total_supply_encode = total_supply.encode();
+                env.write(&total_supply_encode, false, None)
+                    .map_err(|_| DispatchError::Other("ChainExtension failed to call total_supply"))?;
+            }
             _ => {
                 log::info!("unknown chain extension");
-                Err(DispatchError::Other("unknown chain extension"))
+                return Err(DispatchError::Other("unknown chain extension"));
             }
         };
         Ok(RetVal::Converging(0))
