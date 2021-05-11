@@ -71,9 +71,10 @@ use xcm_builder::{
 	AllowUnpaidExecutionFrom, ParentAsSuperuser,
 };
 use xcm_executor::{Config, XcmExecutor};
-use crate::chain_extension::XcmSenderExtension;
+use crate::chain_extension::CustomExtension;
 use xcm_executor::traits::FilterAssetLocation;
 use orml_traits::parameter_type_with_key;
+use crate::contract_assets_adapter::{AssetId, CustomMultiAsset};
 
 pub type SessionHandlers = ();
 
@@ -465,7 +466,7 @@ impl pallet_contracts::Config for Runtime {
 	type MaxValueSize = MaxValueSize;
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
 	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
-	type ChainExtension = XcmSenderExtension;
+	type ChainExtension = CustomExtension<CustomMultiAsset<AccountId, AssetId, Balances, Tokens>>;
 	type DeletionQueueDepth = DeletionQueueDepth;
 	type DeletionWeightLimit = DeletionWeightLimit;
 	type MaxCodeSize = MaxCodeSize;
