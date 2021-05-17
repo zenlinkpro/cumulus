@@ -297,6 +297,8 @@ pub type LocalAssetTransactor = CurrencyAdapter<
 	AccountId,
 >;
 
+pub type CustomAssetTransactor = CustomMultiAsset<Address, AssetId, Balances, Tokens>;
+
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
 /// biases the kind of local `Origin` it will become.
@@ -355,7 +357,7 @@ impl Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = XcmRouter;
 	// How to withdraw and deposit an asset.
-	type AssetTransactor = LocalAssetTransactor;
+	type AssetTransactor = CustomAssetTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
 	type IsReserve = TransferableAssets;
 	type IsTeleporter = TransferableAssets;	// <- should be enough to allow teleportation of ROC
