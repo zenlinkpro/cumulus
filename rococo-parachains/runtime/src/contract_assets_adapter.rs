@@ -164,6 +164,7 @@ impl TransactAsset for CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
                         let asset_encode = asset.encode();
                         let input_data = [&selector[..], &from[..],&asset_encode[..]].concat();
                         // Contracts::bare_call((), (), (), 0, input_data);
+                        unimplemented!()
                     }
                     MultiLocation::X3(Junction::Parachain { id: para_id },
                                       Junction::PalletInstance(pallet_index),
@@ -174,7 +175,7 @@ impl TransactAsset for CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
                             asset_index: (*asset_index) as u32,
                         };
                         //call pallet deposit
-
+                        unimplemented!()
                     }
                     _ => {}
                 };
@@ -192,6 +193,7 @@ impl TransactAsset for CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
     ) -> Result<Assets, XcmError> {
         // Check we handle this asset.
         log::info!("CustomMultiAsset::deposit asset what{:#?} who{:#?} \n", what, who);
+        unimplemented!();
         Ok(what.clone().into())
     }
 }
