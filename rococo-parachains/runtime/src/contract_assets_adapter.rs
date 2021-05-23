@@ -7,13 +7,14 @@ use frame_support::{dispatch::DispatchResult, traits::{ExistenceRequirement, Cur
 
 use orml_traits::MultiCurrency;
 
-use rococo_parachain_primitives::{AccountId, TokenSymbol, CurrencyId};
+use rococo_parachain_primitives::{TokenSymbol, CurrencyId, AccountId};
 use crate::{Address, Balances, Tokens, ParachainInfo};
 use xcm_executor::traits::TransactAsset;
 use xcm::v0::{MultiAsset, MultiLocation, Error as XcmError, Junction};
 use xcm_executor::Assets;
 use super::Contracts;
 use sp_std::vec;
+use crate::contract_assets_adapter::AssetId::{Module, Local};
 
 
 type TokenBalance = u128;
@@ -26,10 +27,11 @@ pub enum AssetProducer {
 }
 
 #[derive(Debug, Encode, Decode)]
-pub struct AssetId {
-    pub chain_id: u32,
-    pub producer: AssetProducer,
-    pub asset_index: u32,
+pub enum AssetId {
+    // asset in module
+    Module(u32, u8, u32),
+    // contract asset form local chain, like local erc20 contract.
+    Local(AccountId),
 }
 
 pub trait CustomMultiAssetAdapter<AccountId, AssetId, Balances, Tokens> {
@@ -54,17 +56,18 @@ CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
         Tokens: MultiCurrency<AccountId>
 {
     fn multi_asset_total_supply(asset_id: &AssetId) -> TokenBalance {
-        let para_id: u32 = ParachainInfo::parachain_id().into();
-        if para_id != asset_id.chain_id {
-            return Zero::zero();
-        }
-        match asset_id.producer {
-            AssetProducer::PALLET(pallet_index) => {
-                if pallet_index == 1 {
+        log::info!("chain_extension multi_asset_total_supply assetId {:#?}", asset_id);
+        match asset_id {
+            Module(chain_id, module_index, asset_index) => {
+                let para_id: u32 = ParachainInfo::parachain_id().into();
+                if para_id != *chain_id {
+                    return Zero::zero();
+                }
+                if *module_index == 1 {
                     return Balances::total_issuance();
                 }
-                if pallet_index == 2 {
-                    return TokenSymbol::try_from(asset_id.asset_index as u8).map_or(
+                if *module_index == 2 {
+                    return TokenSymbol::try_from(*asset_index as u8).map_or(
                         Zero::zero(),
                         |symbol| {
                             Tokens::total_issuance(CurrencyId::Token(symbol))
@@ -73,22 +76,25 @@ CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
                 }
                 Zero::zero()
             }
-            AssetProducer::CONTRACT(_) => Zero::zero()
+            Local(..)=>{
+                unimplemented!()
+            }
         }
     }
 
     fn multi_asset_balance_of(asset_id: &AssetId, who: &AccountId) -> TokenBalance {
-        let para_id: u32 = ParachainInfo::parachain_id().into();
-        if para_id != asset_id.chain_id {
-            return Zero::zero();
-        }
-        match asset_id.producer {
-            AssetProducer::PALLET(pallet_index) => {
-                if pallet_index == 1 {
+        log::info!("chain_extension multi_asset_balance_of balance_of {:#?}", asset_id);
+        match asset_id {
+            Module(chain_id, module_index, asset_index) => {
+                let para_id: u32 = ParachainInfo::parachain_id().into();
+                if para_id != *chain_id {
+                    return Zero::zero();
+                }
+                if *module_index == 1 {
                     return Balances::free_balance(who);
                 }
-                if pallet_index == 2 {
-                    return TokenSymbol::try_from(asset_id.asset_index as u8).map_or(
+                if *module_index == 2 {
+                    return TokenSymbol::try_from(*asset_index as u8).map_or(
                         Zero::zero(),
                         |symbol| {
                             Tokens::free_balance(CurrencyId::Token(symbol), who)
@@ -97,7 +103,9 @@ CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
                 }
                 Zero::zero()
             }
-            AssetProducer::CONTRACT(_) => Zero::zero()
+            Local(..) =>{
+                unimplemented!()
+            }
         }
     }
 
@@ -107,17 +115,19 @@ CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
         to: &AccountId,
         amount: TokenBalance,
     ) -> DispatchResult {
-        let para_id: u32 = ParachainInfo::parachain_id().into();
-        if para_id != asset_id.chain_id {
-            return Err(DispatchError::Other("unknown asset id"));
-        }
-        match asset_id.producer {
-            AssetProducer::PALLET(pallet_index) => {
-                if pallet_index == 1 {
+        match asset_id {
+            Module(chain_id, module_index, asset_index) => {
+                let para_id: u32 = ParachainInfo::parachain_id().into();
+                if para_id != *chain_id {
+                    return Err(DispatchError::Other("unknown asset id"));
+                }
+                if *module_index == 1 {
+                    log::info!("chain_extension multi_asset_transfer balances");
                     return <Balances as Currency<AccountId>>::transfer(from, to, amount, ExistenceRequirement::KeepAlive);
                 }
-                if pallet_index == 2 {
-                    return TokenSymbol::try_from(asset_id.asset_index as u8).map_or(
+                if *module_index == 2 {
+                    log::info!("chain_extension multi_asset_transfer tokens");
+                    return TokenSymbol::try_from(*asset_index as u8).map_or(
                         Err(DispatchError::Other("unknown asset id")),
                         |symbol| {
                             <Tokens as MultiCurrency<AccountId>>::transfer(CurrencyId::Token(symbol), from, to, amount)
@@ -126,7 +136,9 @@ CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
                 }
                 Err(DispatchError::Other("unknown asset id"))
             }
-            AssetProducer::CONTRACT(_) => Err(DispatchError::Other("known asset"))
+            Local(address)=>{
+                unimplemented!()
+            }
         }
     }
 }
@@ -141,12 +153,12 @@ impl TransactAsset for CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
     fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
         // Check we handle this asset.
         log::info!("CustomMultiAsset::deposit asset what{:#?} who{:#?} \n", what, who);
-        let from = match who{
+        let from = match who {
             MultiLocation::X1(Junction::AccountId32 { network, id }) => {
                 Ok(id)
             }
             _ => Err(())
-        }.map_err(|_|XcmError::LocationCannotHold)?;
+        }.map_err(|_| XcmError::LocationCannotHold)?;
 
         match what {
             MultiAsset::ConcreteFungible { id: location, amount } => {
@@ -154,26 +166,17 @@ impl TransactAsset for CustomMultiAsset<AccountId, AssetId, Balances, Tokens>
                     MultiLocation::X3(Junction::Parachain { id: para_id },
                                       Junction::AccountId32 { network: _, id: address },
                                       Junction::GeneralIndex { id: asset_index }) => {
-                        let asset = AssetId {
-                            chain_id: *para_id,
-                            producer: AssetProducer::CONTRACT(Address::new(*address)),
-                            asset_index: *asset_index as u32,
-                        };
                         //call contract deposit ?
-                        let selector = "0xbdd16bfa".encode();
-                        let asset_encode = asset.encode();
-                        let input_data = [&selector[..], &from[..],&asset_encode[..]].concat();
+                        // let selector = "0xbdd16bfa".encode();
+                        // let asset_encode = asset.encode();
+                        // let input_data = [&selector[..], &from[..], &asset_encode[..]].concat();
                         // Contracts::bare_call((), (), (), 0, input_data);
                         unimplemented!()
                     }
                     MultiLocation::X3(Junction::Parachain { id: para_id },
                                       Junction::PalletInstance(pallet_index),
                                       Junction::GeneralIndex { id: asset_index }) => {
-                        let asset = AssetId {
-                            chain_id: *para_id,
-                            producer: AssetProducer::PALLET(*pallet_index),
-                            asset_index: (*asset_index) as u32,
-                        };
+
                         //call pallet deposit
                         unimplemented!()
                     }

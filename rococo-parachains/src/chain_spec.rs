@@ -128,6 +128,8 @@ fn testnet_genesis(
 	endowed_accounts: Vec<AccountId>,
 	id: ParaId,
 ) -> parachain_runtime::GenesisConfig {
+	let contract_schedule = pallet_contracts::Schedule::default();
+	let contract_schedule = contract_schedule.enable_println(true);
 	parachain_runtime::GenesisConfig {
 		frame_system: parachain_runtime::SystemConfig {
 			code: parachain_runtime::WASM_BINARY
@@ -145,7 +147,7 @@ fn testnet_genesis(
 		pallet_sudo: parachain_runtime::SudoConfig { key: root_key.clone() },
 		parachain_info: parachain_runtime::ParachainInfoConfig { parachain_id: id },
 		pallet_contracts: GenesisConfig {
-			current_schedule: pallet_contracts::Schedule::default()
+			current_schedule: contract_schedule
 		},
 		orml_tokens: TokensConfig{
 			endowed_accounts: vec![(root_key, DOT, 1_000_000_000_000)],

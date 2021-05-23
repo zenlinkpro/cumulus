@@ -13,7 +13,8 @@ use crate::{XcmConfig, Runtime, Balances, Tokens, contract_assets_adapter::{
     CustomMultiAsset, AssetId, CustomMultiAssetAdapter},
 };
 use sp_std::borrow::Borrow;
-
+use frame_support::sp_runtime::traits::AccountIdConversion;
+use sp_std::convert::TryFrom;
 
 pub struct CustomExtension<CustomMultiAssetAdapter>(
     PhantomData<CustomMultiAssetAdapter>
@@ -29,21 +30,24 @@ struct XcmParameter {
 // Now, we ignore AssetId, just transfer Balance;
 #[derive(Debug, Encode, Decode)]
 struct TransferParameter {
-    pub from: AccountId32,
-    pub to: AccountId32,
     pub asset_id: AssetId,
+    pub to: AccountId32,
     pub amount: u128,
 }
 #[derive(Debug, Encode, Decode)]
 struct BalancesOfParameter{
-    pub owner: AccountId32,
     pub asset_id: AssetId,
+    pub owner: AccountId32,
+}
+
+pub fn to_account_id(account: &[u8]) -> AccountId32 {
+    AccountId32::try_from(account).unwrap()
 }
 
 impl ChainExtension<Runtime> for CustomExtension<CustomMultiAsset<AccountId, AssetId, Balances, Tokens>> {
     fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
         where
-            <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+            <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> ,
     {
         match func_id {
             1101 => {
@@ -72,11 +76,14 @@ impl ChainExtension<Runtime> for CustomExtension<CustomMultiAsset<AccountId, Ass
             }
             1102 => {
                 log::info!("chain extension call 1102 transfer");
-                let env = env.buf_in_buf_out();
+                let mut env = env.buf_in_buf_out();
+                let caller = env.ext().caller();
+                let who = to_account_id(caller.as_ref());
                 let data = env.read(mem::size_of::<TransferParameter>() as u32).unwrap_or_default();
                 let params = TransferParameter::decode(&mut &data[..])
                     .map_err(|_| DispatchError::Other("ChainExtension failed to call balance of"))?;
-                CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_transfer(&params.asset_id, &params.from, &params.to, params.amount)?;
+                log::info!("************* chain extension call 1102 transfer params:  who {:#?} :{:#?}",who,  params);
+                CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_transfer(&params.asset_id, who.borrow(), &params.to, params.amount)?;
             }
             1104 =>{
                 log::info!("chain extension call 1104 balance_of");
@@ -88,6 +95,7 @@ impl ChainExtension<Runtime> for CustomExtension<CustomMultiAsset<AccountId, Ass
                         CustomMultiAsset::<AccountId, AssetId, Balances, Tokens>::multi_asset_balance_of(&params.asset_id, params.owner.borrow())
                     });
                 let balance = balance.encode();
+                log::info!("************* chain extension call 1104 balance_of {:#?}", balance);
                 env.write(&balance, false, None)
                     .map_err(|_| DispatchError::Other("ChainExtension failed to call balance of"))?;
             }
